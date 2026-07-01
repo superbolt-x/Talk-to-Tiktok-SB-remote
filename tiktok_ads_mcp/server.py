@@ -53,18 +53,47 @@ READONLY = ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHi
 WRITE = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True)
 # DESTRUCTIVE (delete/irreversible) — none exist in the current TikTok toolset.
 
-# Allow the Railway hostname through the MCP SDK's DNS-rebinding protection,
-# otherwise every POST /mcp returns 421 "Invalid Host header".
-if SERVER_URL:
-    _host = urlparse(SERVER_URL).netloc
+# Allow the deployment host(s) through the MCP SDK's DNS-rebinding protection,
+# otherwise every POST /mcp returns 421 "Invalid Host header". We collect hosts
+# from several sources so a missing scheme or wrong SERVER_URL can't break it:
+#   - SERVER_URL           (tolerates a missing scheme, e.g. "foo.up.railway.app")
+#   - RAILWAY_PUBLIC_DOMAIN (auto-injected by Railway when a domain is generated)
+#   - MCP_ALLOWED_HOSTS     (optional comma-separated manual override / escape hatch)
+def _derive_allowed_hosts() -> list[str]:
+    candidates: list[str] = []
+    if SERVER_URL:
+        _u = SERVER_URL if "//" in SERVER_URL else "https://" + SERVER_URL
+        netloc = urlparse(_u).netloc
+        if netloc:
+            candidates.append(netloc)
+    rpd = os.environ.get("RAILWAY_PUBLIC_DOMAIN", "").strip()
+    if rpd:
+        candidates.append(rpd)
+    for h in os.environ.get("MCP_ALLOWED_HOSTS", "").split(","):
+        if h.strip():
+            candidates.append(h.strip())
+    seen, out = set(), []
+    for h in candidates:
+        if h not in seen:
+            seen.add(h)
+            out.append(h)
+    return out
+
+
+_allowed_hosts = _derive_allowed_hosts()
+if _allowed_hosts:
+    _hosts = [x for h in _allowed_hosts for x in (h, f"{h}:*")]
+    _origins = [x for h in _allowed_hosts for x in (f"https://{h}", f"http://{h}")]
     _transport_security = TransportSecuritySettings(
         enable_dns_rebinding_protection=True,
-        allowed_hosts=[_host, f"{_host}:*"],
-        allowed_origins=[SERVER_URL, f"{SERVER_URL}:*"],
+        allowed_hosts=_hosts,
+        allowed_origins=_origins,
     )
+    logger.info("DNS-rebinding protection ON — allowed hosts: %s", _allowed_hosts)
 else:
-    # Local/dev — no public host to pin.
+    # No host to pin (local/dev) — disable protection so it still runs.
     _transport_security = TransportSecuritySettings(enable_dns_rebinding_protection=False)
+    logger.warning("No SERVER_URL / RAILWAY_PUBLIC_DOMAIN — DNS-rebinding protection OFF")
 
 mcp = FastMCP(
     "Talk-to-TikTok",
