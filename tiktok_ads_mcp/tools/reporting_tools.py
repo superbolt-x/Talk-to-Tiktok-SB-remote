@@ -6,6 +6,17 @@ from typing import Any, Dict, List, Optional
 
 from ..tiktok_client import TikTokAdsClient
 
+# Payment / shopping-value metrics for standard website/shopping conversion campaigns.
+# NOT GMV Max / roas_bid — we have no GMV Max clients. Candidate names from TikTok's
+# Reporting > Metrics docs; UNVERIFIED against a live advertiser (availability varies
+# by objective/account) — confirm via tiktok_ads_get_available_metrics against a real
+# advertiser before relying on these in production.
+GMV_METRICS = [
+    "complete_payment", "total_complete_payment", "complete_payment_roas",
+    "value_per_complete_payment", "cost_per_complete_payment",
+    "onsite_shopping", "total_onsite_shopping_value", "total_purchase_value",
+]
+
 
 class ReportingTools:
     """Tools for generating and managing TikTok Ads reports."""
@@ -67,11 +78,11 @@ class ReportingTools:
             
             # Validate metrics
             available_metrics = [
-                "impressions", "clicks", "conversion", "spend", "ctr", "cpm", "cpc", 
+                "impressions", "clicks", "conversion", "spend", "ctr", "cpm", "cpc",
                 "conversion_rate", "cost_per_conversion", "reach", "frequency",
                 "video_play_actions", "video_watched_2s", "video_watched_6s",
                 "profile_visits", "likes", "comments", "shares", "follows"
-            ]
+            ] + GMV_METRICS
             
             invalid_metrics = [m for m in metrics if m not in available_metrics]
             if invalid_metrics:
@@ -370,6 +381,16 @@ class ReportingTools:
                 "conversion_rate": "Conversion rate percentage",
                 "cost_per_conversion": "Average cost per conversion",
                 "roas": "Return on ad spend"
+            },
+            "payment_metrics": {
+                "complete_payment": "Number of complete-payment conversion events",
+                "total_complete_payment": "Total payment value (GMV) from complete-payment events",
+                "complete_payment_roas": "Return on ad spend based on complete-payment value",
+                "value_per_complete_payment": "Average payment value per complete-payment event",
+                "cost_per_complete_payment": "Average cost per complete-payment event",
+                "onsite_shopping": "Number of onsite shopping conversion events",
+                "total_onsite_shopping_value": "Total value from onsite shopping conversions",
+                "total_purchase_value": "Total purchase value across tracked purchase events",
             },
             "calculated_metrics": {
                 "ctr": "Click-through rate (clicks/impressions)",

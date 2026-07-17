@@ -287,6 +287,39 @@ async def tiktok_ads_get_adgroup_performance(
 
 
 @mcp.tool(annotations=READONLY)
+async def tiktok_ads_get_gmv_performance(
+    entity_ids: list[str],
+    level: str = "campaign",
+    date_range: str = "last_7_days",
+    advertiser_id: str | None = None,
+) -> dict:
+    """Get payment value ("GMV") / shopping conversions for campaigns or ad groups,
+    joined with their budget context. Standard website/shopping conversion campaigns
+    only (we run no GMV Max campaigns) — metrics: complete_payment, total_complete_payment,
+    complete_payment_roas, value_per_complete_payment, cost_per_complete_payment,
+    onsite_shopping, total_onsite_shopping_value, total_purchase_value.
+
+    Args:
+        entity_ids: Campaign IDs (level='campaign') or ad group IDs (level='adgroup').
+        level: 'campaign' or 'adgroup'.
+        date_range: One of today, yesterday, last_7_days, last_14_days, last_30_days.
+        advertiser_id: Advertiser ID (defaults to the selected/default account).
+    """
+    if not ACCESS_TOKEN:
+        return _missing_token()
+    adv = _resolve_advertiser(advertiser_id)
+    if not adv:
+        return _missing_advertiser()
+    client = _client(adv)
+    try:
+        return await PerformanceTools(client).get_gmv_performance(
+            entity_ids=entity_ids, level=level, date_range=date_range
+        )
+    finally:
+        await client.close()
+
+
+@mcp.tool(annotations=READONLY)
 async def tiktok_ads_get_ad_creatives(
     limit: int = 10,
     creative_type: str | None = None,

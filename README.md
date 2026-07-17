@@ -37,14 +37,21 @@ The advertiser account is chosen per call via `advertiser_id`, or via the
 
 Tools are annotated (`readOnlyHint` / write) so Claude's permission UI can bucket them.
 
-**Read-only (14):**
+**Read-only (15):**
 `tiktok_ads_auth_status`, `tiktok_ads_switch_ad_account`, `tiktok_ads_get_campaigns`,
 `tiktok_ads_get_campaign_details`, `tiktok_ads_get_adgroups`,
 `tiktok_ads_get_campaign_performance`, `tiktok_ads_get_adgroup_performance`,
-`tiktok_ads_get_ad_creatives`, `tiktok_ads_get_custom_audiences`,
+`tiktok_ads_get_gmv_performance`, `tiktok_ads_get_ad_creatives`, `tiktok_ads_get_custom_audiences`,
 `tiktok_ads_get_targeting_options`, `tiktok_ads_get_available_metrics`,
 `tiktok_ads_generate_report`, `tiktok_ads_get_report_status`,
 `tiktok_ads_download_report`
+
+`tiktok_ads_get_gmv_performance` returns payment-value ("GMV") / shopping-conversion
+metrics (`complete_payment`, `total_complete_payment`, `onsite_shopping`, etc.) joined
+with budget context, for standard website/shopping conversion campaigns (no GMV Max
+clients today, so this intentionally excludes GMV Max fields like `roas_bid`). The
+payment/shopping metric names are unverified against a live account — see the code
+comment in `tools/reporting_tools.py` (`GMV_METRICS`) before relying on them in prod.
 
 **Write (2):** `tiktok_ads_create_campaign`, `tiktok_ads_create_adgroup`
 

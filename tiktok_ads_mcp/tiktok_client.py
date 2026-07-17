@@ -87,6 +87,10 @@ class TikTokAdsClient:
         params = {"filtering": json.dumps({"campaign_ids": [campaign_id]})}
         return await self._make_request("GET", "campaign/get/", params=params)
 
+    async def get_campaigns_by_ids(self, campaign_ids: List[str]) -> Dict[str, Any]:
+        params = {"filtering": json.dumps({"campaign_ids": campaign_ids}), "page_size": len(campaign_ids) or 1}
+        return await self._make_request("GET", "campaign/get/", params=params)
+
     async def create_campaign(self, campaign_data: Dict[str, Any]) -> Dict[str, Any]:
         return await self._make_request("POST", "campaign/create/", data=campaign_data)
 
@@ -105,6 +109,10 @@ class TikTokAdsClient:
 
     async def create_adgroup(self, adgroup_data: Dict[str, Any]) -> Dict[str, Any]:
         return await self._make_request("POST", "adgroup/create/", data=adgroup_data)
+
+    async def get_adgroups_by_ids(self, adgroup_ids: List[str]) -> Dict[str, Any]:
+        params = {"filtering": json.dumps({"adgroup_ids": adgroup_ids}), "page_size": len(adgroup_ids) or 1}
+        return await self._make_request("GET", "adgroup/get/", params=params)
 
     async def get_performance_data(
         self,
