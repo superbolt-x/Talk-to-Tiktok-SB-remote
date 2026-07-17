@@ -22,7 +22,7 @@ import os
 import secrets
 from urllib.parse import parse_qs
 
-from tiktok_ads_mcp.server import mcp, AUTH_TOKEN
+from tiktok_ads_mcp.server import mcp, AUTH_TOKEN, _allowed_hosts
 
 logger = logging.getLogger("talk-to-tiktok")
 
@@ -81,12 +81,17 @@ def build_app(transport: str = "streamable-http"):
         async with raw_app.router.lifespan_context(_app):
             yield
 
-    async def health(_: Request) -> JSONResponse:
+    async def health(request: Request) -> JSONResponse:
         return JSONResponse({
             "status": "ok",
             "transport": transport,
             "auth_gate": bool(AUTH_TOKEN),
             "tiktok_token_configured": bool(os.environ.get("TIKTOK_ACCESS_TOKEN")),
+            # Diagnostic for 421 "Invalid Host header": compare request_host against
+            # allowed_hosts. If request_host isn't in the list (with or without a
+            # port), that's the mismatch — check SERVER_URL / RAILWAY_PUBLIC_DOMAIN.
+            "allowed_hosts": _allowed_hosts,
+            "request_host": request.headers.get("host"),
         })
 
     return Starlette(
