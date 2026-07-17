@@ -53,17 +53,37 @@ READONLY = ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHi
 WRITE = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True)
 # DESTRUCTIVE (delete/irreversible) — none exist in the current TikTok toolset.
 
-# Allow the Railway hostname through the MCP SDK's DNS-rebinding protection,
-# otherwise every POST /mcp returns 421 "Invalid Host header".
-if SERVER_URL:
-    _host = urlparse(SERVER_URL).netloc
+# Allow the Railway hostname(s) through the MCP SDK's DNS-rebinding protection,
+# otherwise every POST /mcp returns 421 "Invalid Host header". SERVER_URL alone
+# breaks this on non-prod Railway environments (e.g. a "dev" environment whose
+# SERVER_URL got copied from prod but whose actual public domain differs) — also
+# fold in RAILWAY_PUBLIC_DOMAIN (auto-injected per-environment) and an optional
+# MCP_ALLOWED_HOSTS override, same pattern as Talk-to-Meta-SB-remote.
+def _derive_allowed_hosts() -> list[str]:
+    candidates: list[str] = []
+    if SERVER_URL:
+        netloc = urlparse(SERVER_URL).netloc
+        if netloc:
+            candidates.append(netloc)
+    rpd = os.environ.get("RAILWAY_PUBLIC_DOMAIN", "").strip()
+    if rpd:
+        candidates.append(rpd)
+    for h in os.environ.get("MCP_ALLOWED_HOSTS", "").split(","):
+        if h.strip():
+            candidates.append(h.strip())
+    seen: set[str] = set()
+    return [h for h in candidates if not (h in seen or seen.add(h))]
+
+
+_allowed_hosts = _derive_allowed_hosts()
+if _allowed_hosts:
     _transport_security = TransportSecuritySettings(
         enable_dns_rebinding_protection=True,
-        allowed_hosts=[_host, f"{_host}:*"],
-        allowed_origins=[SERVER_URL, f"{SERVER_URL}:*"],
+        allowed_hosts=[x for h in _allowed_hosts for x in (h, f"{h}:*")],
+        allowed_origins=[x for h in _allowed_hosts for x in (f"https://{h}", f"http://{h}")],
     )
 else:
-    # Local/dev — no public host to pin.
+    # Local/dev with no public host at all — nothing to pin.
     _transport_security = TransportSecuritySettings(enable_dns_rebinding_protection=False)
 
 mcp = FastMCP(
