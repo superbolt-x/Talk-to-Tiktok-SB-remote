@@ -64,6 +64,54 @@ class ManagementTools:
         return any("DISABLE" in str(row.get(k, "")).upper()
                    for k in ("operation_status", "secondary_status", "primary_status"))
 
+    @staticmethod
+    def _all_strings(obj: Any, out: set) -> set:
+        """Every string/int leaf inside a nested JSON value."""
+        if isinstance(obj, dict):
+            for v in obj.values():
+                ManagementTools._all_strings(v, out)
+        elif isinstance(obj, list):
+            for v in obj:
+                ManagementTools._all_strings(v, out)
+        elif isinstance(obj, (str, int)) and not isinstance(obj, bool):
+            out.add(str(obj))
+        return out
+
+    @staticmethod
+    def _row_ids(row: Dict[str, Any]) -> set:
+        """Identifiers on an ad/get row that could also appear inside a Smart+ row."""
+        skip = {"advertiser_id", "campaign_id", "adgroup_id"}
+        return {str(v) for k, v in row.items()
+                if k.endswith("_id") and k not in skip and isinstance(v, (str, int)) and v}
+
+    def _apply_smart_plus_status(self, rows: List[Dict[str, Any]], sp_rows: List[Dict[str, Any]]) -> None:
+        """Write the Smart+ status into the matching ad/get rows.
+
+        A row is matched to a Smart+ ad when one of its ids (ad_id, creative ids, ...) appears
+        anywhere inside the Smart+ row. Originals are kept as ad_get_*; rows that can't be
+        matched are marked so nobody trusts their ad/get status.
+        """
+        index = [(sp, self._all_strings(sp, set())) for sp in sp_rows]
+        smart_rows = [r for r in rows if self._is_smart_plus(r)]
+        # Ids shared by several ads (identity, pixel, ...) would mis-match; use only ids unique to one row.
+        counts: Dict[str, int] = {}
+        for r in smart_rows:
+            for i in self._row_ids(r):
+                counts[i] = counts.get(i, 0) + 1
+        for row in smart_rows:
+            ids = {i for i in self._row_ids(row) if counts[i] == 1}
+            matches = [sp for sp, vals in index if ids & vals]
+            match = matches[0] if len(matches) == 1 else None  # ambiguous => unmatched
+            if match is None:
+                row["status_source"] = "ad/get (could not match to a Smart+ ad; status may be wrong)"
+                continue
+            for k in ("operation_status", "secondary_status"):
+                if k in match:
+                    row[f"ad_get_{k}"] = row.get(k)
+                    row[k] = match[k]
+            row["smart_plus_ad_id"] = match.get("smart_plus_ad_id")
+            row["status_source"] = "smart_plus/ad/get"
+
     async def _add_smart_plus_status(self, data: Dict[str, Any]) -> None:
         """ad/get reports ENABLE/DELIVERY_OK for Smart+ ads that are disabled at the
         Smart+ level. When the result contains Smart+ ads, also fetch smart_plus/ad/get
@@ -75,8 +123,9 @@ class ManagementTools:
             return
         data["smart_plus_warning"] = (
             "Some ads are Upgraded Smart+ ads. ad/get can report them as ENABLE/DELIVERY_OK even when "
-            "they are disabled; trust smart_plus_ads (from smart_plus/ad/get) for their status. "
-            "Note ad_id here may be a creative ID, while smart_plus_ads uses smart_plus_ad_id."
+            "they are disabled. Rows matched to a Smart+ ad have operation_status/secondary_status taken from "
+            "smart_plus/ad/get (originals kept as ad_get_*; see status_source). Unmatched rows are marked; trust "
+            "smart_plus_ads for them. Note ad_id may be a creative ID, while smart_plus_ads uses smart_plus_ad_id."
         )
         adgroup_ids = sorted({str(r["adgroup_id"]) for r in smart if r.get("adgroup_id")})
         if not adgroup_ids:
@@ -89,6 +138,7 @@ class ManagementTools:
             return
         sp_rows = sp["data"].get("list") or []
         data["smart_plus_ads"] = sp_rows
+        self._apply_smart_plus_status(rows, sp_rows)
         data["smart_plus_disabled"] = [
             {k: r.get(k) for k in ("smart_plus_ad_id", "ad_name", "operation_status", "secondary_status")}
             for r in sp_rows if self._is_disabled(r)
