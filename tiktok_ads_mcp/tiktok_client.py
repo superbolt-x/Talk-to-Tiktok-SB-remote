@@ -18,9 +18,11 @@ class TikTokAdsClient:
         access_token: str,
         advertiser_id: Optional[str] = None,
         available_advertiser_ids: Optional[list] = None,
+        skip_advertiser: bool = False,
     ):
         self.access_token = access_token
         self.advertiser_id = advertiser_id
+        self.skip_advertiser = skip_advertiser
         self.available_advertiser_ids = available_advertiser_ids or []
         self.client = httpx.AsyncClient(timeout=30.0)
 
@@ -34,10 +36,12 @@ class TikTokAdsClient:
     ) -> Dict[str, Any]:
         url = f"{self.BASE_URL}/{endpoint.lstrip('/')}"
 
-        common_params = {
-            "advertiser_id": self.advertiser_id,
-            "advertiser_ids": [self.advertiser_id],
-        }
+        common_params: Dict[str, Any] = {}
+        if self.advertiser_id and not self.skip_advertiser:
+            common_params = {
+                "advertiser_id": self.advertiser_id,
+                "advertiser_ids": [self.advertiser_id],
+            }
         headers = {"Access-Token": self.access_token}
 
         if params:
