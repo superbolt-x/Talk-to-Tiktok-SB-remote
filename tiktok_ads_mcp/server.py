@@ -29,6 +29,7 @@ from .tools import (
     PerformanceTools,
     AudienceTools,
     ReportingTools,
+    ManagementTools,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
@@ -100,7 +101,7 @@ mcp = FastMCP(
     instructions=(
         "Talk-to-TikTok connects TikTok Ads (TikTok Business API) to Claude. "
         "Read tools retrieve campaigns, ad groups, performance, creatives, audiences, "
-        "and reports. Write tools create campaigns and ad groups. "
+        "and reports. Write tools create and edit campaigns, ad groups and ads, and pause/resume them. "
         "Select the advertiser with tiktok_ads_switch_ad_account, or pass advertiser_id per call."
     ),
     transport_security=_transport_security,
@@ -543,6 +544,275 @@ async def tiktok_ads_create_adgroup(
         )
     finally:
         await client.close()
+
+
+# ============================================================================
+# MANAGEMENT TOOLS  (ads, review info, changelog, advertiser info, edits)
+# ============================================================================
+
+async def _manage(advertiser_id: str | None, call):
+    """Run call(ManagementTools) for the resolved advertiser, with shared guards."""
+    if not ACCESS_TOKEN:
+        return _missing_token()
+    adv = _resolve_advertiser(advertiser_id)
+    if not adv:
+        return _missing_advertiser()
+    client = _client(adv)
+    try:
+        return await call(ManagementTools(client))
+    finally:
+        await client.close()
+
+
+@mcp.tool(annotations=READONLY)
+async def tiktok_ads_get_ads(
+    adgroup_id: str | None = None,
+    campaign_id: str | None = None,
+    ad_ids: list[str] | None = None,
+    status: str | None = None,
+    limit: int = 10,
+    advertiser_id: str | None = None,
+) -> dict:
+    """List ads (with creative details) filtered by ad group, campaign or ad IDs.
+
+    Args:
+        adgroup_id: Only ads in this ad group.
+        campaign_id: Only ads in this campaign.
+        ad_ids: Only these ad IDs.
+        status: Optional primary_status filter (e.g. STATUS_ALL, STATUS_DELIVERY_OK).
+        limit: Maximum number of ads to return.
+        advertiser_id: Advertiser ID (defaults to the selected/default account).
+    """
+    return await _manage(advertiser_id, lambda m: m.get_ads(adgroup_id, campaign_id, ad_ids, status, limit))
+
+
+@mcp.tool(annotations=READONLY)
+async def tiktok_ads_get_ad_performance(
+    ad_ids: list[str],
+    start_date: str,
+    end_date: str,
+    metrics: list[str] | None = None,
+    dimensions: list[str] | None = None,
+    advertiser_id: str | None = None,
+) -> dict:
+    """Get ad-level performance metrics.
+
+    Args:
+        ad_ids: Ad IDs to report on.
+        start_date: YYYY-MM-DD.
+        end_date: YYYY-MM-DD.
+        metrics: Defaults to spend, impressions, clicks, ctr, cpc, cpm, conversion, cost_per_conversion.
+        dimensions: Defaults to ["ad_id"]; use ["ad_id", "stat_time_day"] for a daily breakdown.
+        advertiser_id: Advertiser ID (defaults to the selected/default account).
+    """
+    metrics = metrics or ["spend", "impressions", "clicks", "ctr", "cpc", "cpm", "conversion", "cost_per_conversion"]
+    dimensions = dimensions or ["ad_id"]
+    return await _manage(advertiser_id, lambda m: m.get_ad_performance(
+        "AUCTION_AD", ad_ids, metrics, start_date, end_date, dimensions))
+
+
+@mcp.tool(annotations=READONLY)
+async def tiktok_ads_get_ad_review_info(ad_ids: list[str], advertiser_id: str | None = None) -> dict:
+    """Get review/approval status and rejection reasons for ads.
+
+    Args:
+        ad_ids: Ad IDs to check.
+        advertiser_id: Advertiser ID (defaults to the selected/default account).
+    """
+    return await _manage(advertiser_id, lambda m: m.get_ad_review_info(ad_ids))
+
+
+@mcp.tool(annotations=READONLY)
+async def tiktok_ads_get_adgroup_review_info(adgroup_ids: list[str], advertiser_id: str | None = None) -> dict:
+    """Get review/approval status and rejection reasons for ad groups.
+
+    Args:
+        adgroup_ids: Ad group IDs to check.
+        advertiser_id: Advertiser ID (defaults to the selected/default account).
+    """
+    return await _manage(advertiser_id, lambda m: m.get_adgroup_review_info(adgroup_ids))
+
+
+@mcp.tool(annotations=READONLY)
+async def tiktok_ads_get_changelog(
+    module: str,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    filtering: dict | None = None,
+    limit: int = 20,
+    advertiser_id: str | None = None,
+) -> dict:
+    """Get the account change log (who changed what, and when).
+
+    Args:
+        module: Object type, e.g. CAMPAIGN, ADGROUP, AD.
+        start_date: Optional start (YYYY-MM-DD).
+        end_date: Optional end (YYYY-MM-DD).
+        filtering: Optional TikTok changelog filtering object.
+        limit: Maximum number of entries.
+        advertiser_id: Advertiser ID (defaults to the selected/default account).
+    """
+    return await _manage(advertiser_id, lambda m: m.get_changelog(module, start_date, end_date, filtering, limit))
+
+
+@mcp.tool(annotations=READONLY)
+async def tiktok_ads_get_advertiser_info(fields: list[str] | None = None, advertiser_id: str | None = None) -> dict:
+    """Get advertiser account details (name, currency, timezone, status, etc.).
+
+    Args:
+        fields: Optional list of fields to return.
+        advertiser_id: Advertiser ID (defaults to the selected/default account).
+    """
+    return await _manage(advertiser_id, lambda m: m.get_advertiser_info(fields))
+
+
+@mcp.tool(annotations=READONLY)
+async def tiktok_ads_get_advertiser_balance(advertiser_id: str | None = None) -> dict:
+    """Get the advertiser account balance.
+
+    Args:
+        advertiser_id: Advertiser ID (defaults to the selected/default account).
+    """
+    return await _manage(advertiser_id, lambda m: m.get_advertiser_balance())
+
+
+@mcp.tool(annotations=READONLY)
+async def tiktok_ads_get_saved_audiences(limit: int = 10, advertiser_id: str | None = None) -> dict:
+    """List saved audiences (reusable targeting presets).
+
+    Args:
+        limit: Maximum number of saved audiences to return.
+        advertiser_id: Advertiser ID (defaults to the selected/default account).
+    """
+    return await _manage(advertiser_id, lambda m: m.get_saved_audiences(limit))
+
+
+@mcp.tool(annotations=READONLY)
+async def tiktok_ads_estimate_audience_size(targeting: dict, advertiser_id: str | None = None) -> dict:
+    """Estimate audience size for a targeting spec (read-only; creates nothing).
+
+    Args:
+        targeting: TikTok /ad/audience_size/estimate/ body fields (e.g. placements,
+            location_ids, age_groups, gender, interest_category_ids, objective_type).
+        advertiser_id: Advertiser ID (defaults to the selected/default account).
+    """
+    return await _manage(advertiser_id, lambda m: m.estimate_audience_size(targeting))
+
+
+@mcp.tool(annotations=WRITE)
+async def tiktok_ads_update_campaign(campaign_id: str, fields: dict, advertiser_id: str | None = None) -> dict:
+    """Update a campaign (rename, change budget, etc.).
+
+    Args:
+        campaign_id: Campaign to update.
+        fields: TikTok /campaign/update/ fields, e.g. {"campaign_name": "...", "budget": 100}.
+        advertiser_id: Advertiser ID (defaults to the selected/default account).
+    """
+    return await _manage(advertiser_id, lambda m: m.update_campaign(campaign_id, fields))
+
+
+@mcp.tool(annotations=WRITE)
+async def tiktok_ads_update_campaign_status(
+    campaign_ids: list[str], operation_status: str, advertiser_id: str | None = None
+) -> dict:
+    """Pause or resume campaigns. Deleting is not supported.
+
+    Args:
+        campaign_ids: Campaigns to change.
+        operation_status: ENABLE (resume) or DISABLE (pause).
+        advertiser_id: Advertiser ID (defaults to the selected/default account).
+    """
+    return await _manage(advertiser_id, lambda m: m.update_campaign_status(campaign_ids, operation_status))
+
+
+@mcp.tool(annotations=WRITE)
+async def tiktok_ads_update_adgroup(adgroup_id: str, fields: dict, advertiser_id: str | None = None) -> dict:
+    """Update an ad group (name, bid, schedule, targeting, etc.).
+
+    Args:
+        adgroup_id: Ad group to update.
+        fields: TikTok /adgroup/update/ fields, e.g. {"adgroup_name": "...", "bid_price": 1.5}.
+        advertiser_id: Advertiser ID (defaults to the selected/default account).
+    """
+    return await _manage(advertiser_id, lambda m: m.update_adgroup(adgroup_id, fields))
+
+
+@mcp.tool(annotations=WRITE)
+async def tiktok_ads_update_adgroup_status(
+    adgroup_ids: list[str], operation_status: str, advertiser_id: str | None = None
+) -> dict:
+    """Pause or resume ad groups. Deleting is not supported.
+
+    Args:
+        adgroup_ids: Ad groups to change.
+        operation_status: ENABLE (resume) or DISABLE (pause).
+        advertiser_id: Advertiser ID (defaults to the selected/default account).
+    """
+    return await _manage(advertiser_id, lambda m: m.update_adgroup_status(adgroup_ids, operation_status))
+
+
+@mcp.tool(annotations=WRITE)
+async def tiktok_ads_update_adgroup_budget(budgets: list[dict], advertiser_id: str | None = None) -> dict:
+    """Change ad group budgets.
+
+    Args:
+        budgets: List of {"adgroup_id": "...", "budget": 50.0} entries.
+        advertiser_id: Advertiser ID (defaults to the selected/default account).
+    """
+    return await _manage(advertiser_id, lambda m: m.update_adgroup_budget(budgets))
+
+
+@mcp.tool(annotations=WRITE)
+async def tiktok_ads_create_ad(adgroup_id: str, creatives: list[dict], advertiser_id: str | None = None) -> dict:
+    """Create one or more ads in an ad group.
+
+    Args:
+        adgroup_id: Parent ad group ID.
+        creatives: TikTok /ad/create/ creative objects (ad_name, identity_id, video_id,
+            ad_text, call_to_action, landing_page_url, ...).
+        advertiser_id: Advertiser ID (defaults to the selected/default account).
+    """
+    return await _manage(advertiser_id, lambda m: m.create_ad(adgroup_id, creatives))
+
+
+@mcp.tool(annotations=WRITE)
+async def tiktok_ads_update_ad(
+    creatives: list[dict], adgroup_id: str | None = None, advertiser_id: str | None = None
+) -> dict:
+    """Update existing ads (copy, creative, landing page, etc.).
+
+    Args:
+        creatives: TikTok /ad/update/ creative objects; each must include ad_id.
+        adgroup_id: Ad group ID, if required by the update.
+        advertiser_id: Advertiser ID (defaults to the selected/default account).
+    """
+    return await _manage(advertiser_id, lambda m: m.update_ad(creatives, adgroup_id))
+
+
+@mcp.tool(annotations=WRITE)
+async def tiktok_ads_update_ad_status(
+    ad_ids: list[str], operation_status: str, advertiser_id: str | None = None
+) -> dict:
+    """Pause or resume ads. Deleting is not supported.
+
+    Args:
+        ad_ids: Ads to change.
+        operation_status: ENABLE (resume) or DISABLE (pause).
+        advertiser_id: Advertiser ID (defaults to the selected/default account).
+    """
+    return await _manage(advertiser_id, lambda m: m.update_ad_status(ad_ids, operation_status))
+
+
+@mcp.tool(annotations=WRITE)
+async def tiktok_ads_create_custom_audience(fields: dict, advertiser_id: str | None = None) -> dict:
+    """Create a custom audience.
+
+    Args:
+        fields: TikTok /dmp/custom_audience/create/ fields (custom_audience_name,
+            file_paths, calculate_type, ...).
+        advertiser_id: Advertiser ID (defaults to the selected/default account).
+    """
+    return await _manage(advertiser_id, lambda m: m.create_custom_audience(fields))
 
 
 # NOTE: intentionally NOT exposed as tools —
