@@ -42,7 +42,9 @@ class TikTokAdsClient:
 
         if params:
             common_params.update(params)
-        query_string = urlencode({k: v if isinstance(v, string_types) else json.dumps(v) for k, v in common_params.items()})
+        # TikTok expects list/dict params JSON-encoded (e.g. advertiser_ids=["123"]).
+        encoded_params = {k: v if isinstance(v, string_types) else json.dumps(v) for k, v in common_params.items()}
+        query_string = urlencode(encoded_params)
 
         try:
             if method.upper() == "GET":
@@ -50,11 +52,11 @@ class TikTokAdsClient:
             elif method.upper() == "POST":
                 if files:
                     response = await self.client.post(
-                        url, params=common_params, files=files, data=data or {}, headers=headers
+                        url, params=encoded_params, files=files, data=data or {}, headers=headers
                     )
                 else:
                     response = await self.client.post(
-                        url, params=common_params, json=data or {}, headers=headers
+                        url, params=encoded_params, json=data or {}, headers=headers
                     )
             else:
                 raise ValueError(f"Unsupported HTTP method: {method}")

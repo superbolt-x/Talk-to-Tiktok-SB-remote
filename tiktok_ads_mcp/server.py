@@ -640,6 +640,7 @@ async def tiktok_ads_get_changelog(
     end_date: str | None = None,
     filtering: dict | None = None,
     limit: int = 20,
+    bc_id: str | None = None,
     advertiser_id: str | None = None,
 ) -> dict:
     """Get the account change log (who changed what, and when).
@@ -650,9 +651,10 @@ async def tiktok_ads_get_changelog(
         end_date: Optional end (YYYY-MM-DD).
         filtering: Optional TikTok changelog filtering object.
         limit: Maximum number of entries.
+        bc_id: Business Center ID (defaults to the advertiser's owner_bc_id).
         advertiser_id: Advertiser ID (defaults to the selected/default account).
     """
-    return await _manage(advertiser_id, lambda m: m.get_changelog(module, start_date, end_date, filtering, limit))
+    return await _manage(advertiser_id, lambda m: m.get_changelog(module, start_date, end_date, filtering, limit, bc_id=bc_id))
 
 
 @mcp.tool(annotations=READONLY)
@@ -667,13 +669,14 @@ async def tiktok_ads_get_advertiser_info(fields: list[str] | None = None, advert
 
 
 @mcp.tool(annotations=READONLY)
-async def tiktok_ads_get_advertiser_balance(advertiser_id: str | None = None) -> dict:
+async def tiktok_ads_get_advertiser_balance(bc_id: str | None = None, advertiser_id: str | None = None) -> dict:
     """Get the advertiser account balance.
 
     Args:
+        bc_id: Business Center ID (defaults to the advertiser's owner_bc_id).
         advertiser_id: Advertiser ID (defaults to the selected/default account).
     """
-    return await _manage(advertiser_id, lambda m: m.get_advertiser_balance())
+    return await _manage(advertiser_id, lambda m: m.get_advertiser_balance(bc_id))
 
 
 @mcp.tool(annotations=READONLY)

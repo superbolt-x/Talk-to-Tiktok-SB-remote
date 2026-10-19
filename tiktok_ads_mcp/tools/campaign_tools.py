@@ -39,7 +39,7 @@ class CampaignTools:
                     "campaign_id": campaign.get("campaign_id"),
                     "campaign_name": campaign.get("campaign_name"),
                     "objective_type": campaign.get("objective_type"),
-                    "status": campaign.get("primary_status"),
+                    "status": campaign.get("primary_status") or campaign.get("secondary_status") or campaign.get("operation_status"),
                     "budget": campaign.get("budget"),
                     "budget_mode": campaign.get("budget_mode"),
                     "create_time": campaign.get("create_time"),
@@ -97,6 +97,8 @@ class CampaignTools:
                 "objective_type": campaign.get("objective_type"),
                 "status": {
                     "primary_status": campaign.get("primary_status"),
+                    "secondary_status": campaign.get("secondary_status"),
+                    "operation_status": campaign.get("operation_status"),
                     "secondary_status": campaign.get("secondary_status"),
                 },
                 "budget_info": {
@@ -213,7 +215,7 @@ class CampaignTools:
                     "adgroup_id": adgroup.get("adgroup_id"),
                     "adgroup_name": adgroup.get("adgroup_name"),
                     "campaign_id": adgroup.get("campaign_id"),
-                    "status": adgroup.get("primary_status"),
+                    "status": adgroup.get("primary_status") or adgroup.get("secondary_status") or adgroup.get("operation_status"),
                     "placement_type": adgroup.get("placement_type"),
                     "budget": adgroup.get("budget"),
                     "bid_type": adgroup.get("bid_type"),
