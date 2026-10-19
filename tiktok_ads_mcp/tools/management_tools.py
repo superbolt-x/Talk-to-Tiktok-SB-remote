@@ -50,7 +50,49 @@ class ManagementTools:
         params: Dict[str, Any] = {"page": page, "page_size": limit}
         if filtering:
             params["filtering"] = filtering
-        return await self._request("GET", "ad/get/", params=params)
+        res = await self._request("GET", "ad/get/", params=params)
+        if res["success"]:
+            await self._add_smart_plus_status(res["data"])
+        return res
+
+    @staticmethod
+    def _is_smart_plus(row: Dict[str, Any]) -> bool:
+        return "SMART_PLUS" in json.dumps(row, default=str).upper()
+
+    @staticmethod
+    def _is_disabled(row: Dict[str, Any]) -> bool:
+        return any("DISABLE" in str(row.get(k, "")).upper()
+                   for k in ("operation_status", "secondary_status", "primary_status"))
+
+    async def _add_smart_plus_status(self, data: Dict[str, Any]) -> None:
+        """ad/get reports ENABLE/DELIVERY_OK for Smart+ ads that are disabled at the
+        Smart+ level. When the result contains Smart+ ads, also fetch smart_plus/ad/get
+        for the same ad groups and attach it, with the disabled ones called out.
+        """
+        rows = data.get("list") or []
+        smart = [r for r in rows if self._is_smart_plus(r)]
+        if not smart:
+            return
+        data["smart_plus_warning"] = (
+            "Some ads are Upgraded Smart+ ads. ad/get can report them as ENABLE/DELIVERY_OK even when "
+            "they are disabled; trust smart_plus_ads (from smart_plus/ad/get) for their status. "
+            "Note ad_id here may be a creative ID, while smart_plus_ads uses smart_plus_ad_id."
+        )
+        adgroup_ids = sorted({str(r["adgroup_id"]) for r in smart if r.get("adgroup_id")})
+        if not adgroup_ids:
+            return
+        sp = await self._request("GET", "smart_plus/ad/get/", params={
+            "filtering": {"adgroup_ids": adgroup_ids}, "page_size": 100,
+        })
+        if not sp["success"]:
+            data["smart_plus_error"] = sp["data"].get("error")
+            return
+        sp_rows = sp["data"].get("list") or []
+        data["smart_plus_ads"] = sp_rows
+        data["smart_plus_disabled"] = [
+            {k: r.get(k) for k in ("smart_plus_ad_id", "ad_name", "operation_status", "secondary_status")}
+            for r in sp_rows if self._is_disabled(r)
+        ]
 
     async def get_ad_performance(self, level: str, entity_ids: List[str], metrics: List[str],
                                  start_date: str, end_date: str, dimensions: List[str]):
@@ -71,13 +113,19 @@ class ManagementTools:
             ads = await self.get_ads(ad_ids=ad_ids, limit=len(ad_ids) or 10)
             if not ads["success"]:
                 return ads
-            return {"success": True, "data": {
-                "note": "Upgraded Smart+ ads: review endpoint unsupported; showing status fields from ad/get.",
+            d = ads["data"]
+            out = {
+                "note": "Upgraded Smart+ ads: review endpoint unsupported; showing status fields from ad/get, "
+                        "plus smart_plus/ad/get where available (the source of truth for Smart+ status).",
                 "ads": [
                     {k: a.get(k) for k in ("ad_id", "ad_name", "primary_status", "secondary_status", "operation_status")}
-                    for a in ads["data"].get("list", [])
+                    for a in d.get("list", [])
                 ],
-            }}
+            }
+            for k in ("smart_plus_warning", "smart_plus_ads", "smart_plus_disabled", "smart_plus_error"):
+                if k in d:
+                    out[k] = d[k]
+            return {"success": True, "data": out}
         return res
 
     async def get_adgroup_review_info(self, adgroup_ids: List[str]):

@@ -577,6 +577,10 @@ async def tiktok_ads_get_ads(
 ) -> dict:
     """List ads (with creative details) filtered by ad group, campaign or ad IDs.
 
+    For Upgraded Smart+ ads the response also includes smart_plus_ads and
+    smart_plus_disabled (from smart_plus/ad/get), because ad/get alone can show
+    disabled Smart+ ads as ENABLE.
+
     Args:
         adgroup_id: Only ads in this ad group.
         campaign_id: Only ads in this campaign.
