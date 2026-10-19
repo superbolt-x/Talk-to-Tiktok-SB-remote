@@ -64,15 +64,39 @@ class ManagementTools:
             return {"success": False, "data": {"error": str(e), "message": "Failed to retrieve performance"}}
 
     async def get_ad_review_info(self, ad_ids: List[str]):
-        return await self._request("GET", "ad/review_info/", params={"ad_ids": ad_ids})
+        res = await self._request("GET", "ad/review_info/", params={"ad_ids": ad_ids})
+        if not res["success"] and "smart plus" in str(res["data"].get("error", "")).lower():
+            # Upgraded Smart+ ads aren't supported by this endpoint; report the
+            # status fields from ad/get instead.
+            ads = await self.get_ads(ad_ids=ad_ids, limit=len(ad_ids) or 10)
+            if not ads["success"]:
+                return ads
+            return {"success": True, "data": {
+                "note": "Upgraded Smart+ ads: review endpoint unsupported; showing status fields from ad/get.",
+                "ads": [
+                    {k: a.get(k) for k in ("ad_id", "ad_name", "primary_status", "secondary_status", "operation_status")}
+                    for a in ads["data"].get("list", [])
+                ],
+            }}
+        return res
 
     async def get_adgroup_review_info(self, adgroup_ids: List[str]):
         return await self._request("GET", "adgroup/review_info/", params={"adgroup_ids": adgroup_ids})
 
+    async def _bc_id(self, bc_id: Optional[str]) -> Optional[str]:
+        """Explicit bc_id, else the advertiser's owner_bc_id."""
+        if bc_id:
+            return bc_id
+        info = await self.get_advertiser_info(fields=["owner_bc_id"])
+        rows = info["data"].get("list", []) if info["success"] else []
+        return rows[0].get("owner_bc_id") if rows else None
+
     async def get_changelog(self, module: str, start_date: Optional[str] = None,
                             end_date: Optional[str] = None, filtering: Optional[dict] = None,
-                            limit: int = 20, page: int = 1):
+                            limit: int = 20, page: int = 1, bc_id: Optional[str] = None):
         params: Dict[str, Any] = {"module": module, "page": page, "page_size": limit}
+        if bc := await self._bc_id(bc_id):
+            params["bc_id"] = bc
         if start_date:
             params["start_date"] = start_date
         if end_date:
@@ -87,8 +111,11 @@ class ManagementTools:
             params["fields"] = fields
         return await self._request("GET", "advertiser/info/", params=params)
 
-    async def get_advertiser_balance(self):
-        return await self._request("GET", "advertiser/balance/get/")
+    async def get_advertiser_balance(self, bc_id: Optional[str] = None):
+        params: Dict[str, Any] = {}
+        if bc := await self._bc_id(bc_id):
+            params["bc_id"] = bc
+        return await self._request("GET", "advertiser/balance/get/", params=params)
 
     async def get_saved_audiences(self, limit: int = 10, page: int = 1):
         return await self._request("GET", "dmp/saved_audience/list/", params={"page": page, "page_size": limit})
