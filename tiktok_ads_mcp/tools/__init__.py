@@ -5,6 +5,7 @@ from .creative_tools import CreativeTools
 from .performance_tools import PerformanceTools
 from .audience_tools import AudienceTools
 from .reporting_tools import ReportingTools
+from .management_tools import ManagementTools
 
 __all__ = [
     "CampaignTools",
@@ -12,4 +13,5 @@ __all__ = [
     "PerformanceTools",
     "AudienceTools",
     "ReportingTools",
+    "ManagementTools",
 ]

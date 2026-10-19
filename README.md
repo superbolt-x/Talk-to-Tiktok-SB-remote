@@ -37,18 +37,26 @@ The advertiser account is chosen per call via `advertiser_id`, or via the
 
 Tools are annotated (`readOnlyHint` / write) so Claude's permission UI can bucket them.
 
-**Read-only (14):**
+**Read-only (23):**
 `tiktok_ads_auth_status`, `tiktok_ads_switch_ad_account`, `tiktok_ads_get_campaigns`,
 `tiktok_ads_get_campaign_details`, `tiktok_ads_get_adgroups`,
 `tiktok_ads_get_campaign_performance`, `tiktok_ads_get_adgroup_performance`,
 `tiktok_ads_get_ad_creatives`, `tiktok_ads_get_custom_audiences`,
 `tiktok_ads_get_targeting_options`, `tiktok_ads_get_available_metrics`,
 `tiktok_ads_generate_report`, `tiktok_ads_get_report_status`,
-`tiktok_ads_download_report`
+`tiktok_ads_download_report`, `tiktok_ads_get_ads`, `tiktok_ads_get_ad_performance`,
+`tiktok_ads_get_ad_review_info`, `tiktok_ads_get_adgroup_review_info`,
+`tiktok_ads_get_changelog`, `tiktok_ads_get_advertiser_info`,
+`tiktok_ads_get_advertiser_balance`, `tiktok_ads_get_saved_audiences`,
+`tiktok_ads_estimate_audience_size`
 
-**Write (2):** `tiktok_ads_create_campaign`, `tiktok_ads_create_adgroup`
+**Write (11):** `tiktok_ads_create_campaign`, `tiktok_ads_create_adgroup`,
+`tiktok_ads_create_ad`, `tiktok_ads_create_custom_audience`,
+`tiktok_ads_update_campaign`, `tiktok_ads_update_adgroup`, `tiktok_ads_update_ad`,
+`tiktok_ads_update_adgroup_budget`, `tiktok_ads_update_campaign_status`,
+`tiktok_ads_update_adgroup_status`, `tiktok_ads_update_ad_status`
 
-**Destructive:** none (no delete/update tools exist in the source yet).
+**Destructive:** none. Status tools accept only ENABLE/DISABLE; DELETE is rejected.
 
 > `generate_quick_report` exists in the source but is **not registered**: it polls up to
 > 5 minutes and can exceed HTTP request timeouts. Enable it only if you accept
