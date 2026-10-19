@@ -822,6 +822,22 @@ async def tiktok_ads_create_custom_audience(fields: dict, advertiser_id: str | N
     return await _manage(advertiser_id, lambda m: m.create_custom_audience(fields))
 
 
+# ============================================================================
+# GENERATED TOOLS — every other endpoint in TikTok's official MCP (Smart+, GMV Max,
+# catalog, Business Center, pixels, creative, audiences, ...). See api_catalog.py.
+# Set TIKTOK_DISABLE_CATALOG=1 to skip, or TIKTOK_TOOL_PREFIXES=smart_plus,gmv_max
+# to register only some groups.
+# ============================================================================
+if os.environ.get("TIKTOK_DISABLE_CATALOG", "").lower() not in ("1", "true", "yes"):
+    from .api_catalog import register_catalog
+
+    register_catalog(
+        mcp,
+        access_token=ACCESS_TOKEN,
+        resolve_advertiser=_resolve_advertiser,
+        missing_token=_missing_token,
+    )
+
 # NOTE: intentionally NOT exposed as tools —
 #   creative_tools.create_ad_creative / analyze_creative_performance
 #   audience_tools.create_custom_audience / analyze_audience_insights

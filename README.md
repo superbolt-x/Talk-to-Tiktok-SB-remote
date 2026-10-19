@@ -56,7 +56,19 @@ Tools are annotated (`readOnlyHint` / write) so Claude's permission UI can bucke
 `tiktok_ads_update_adgroup_budget`, `tiktok_ads_update_campaign_status`,
 `tiktok_ads_update_adgroup_status`, `tiktok_ads_update_ad_status`
 
-**Destructive:** none. Status tools accept only ENABLE/DISABLE; DELETE is rejected.
+**Generated (~350):** every other endpoint in TikTok's official MCP server — Smart+ (`tiktok_ads_smart_plus_*`),
+GMV Max (`tiktok_ads_*gmv_max*`), catalog, Business Center (`bc_*`), pixels, creative, audiences, split tests,
+automated rules, comments, TikTok One, and more — named `tiktok_ads_<official_tool_name>` and taking
+`args` (TikTok's documented fields) plus `advertiser_id`. Built from `tiktok_ads_mcp/api_endpoints.py`
+by `api_catalog.py`. GETs are read-only; delete/unbind/cancel/disable tools are annotated destructive.
+- Not exposed: `bc_transfer` and `payment_portfolio_credit_line_update` (they move money), and TikTok's two
+  agent tools (`tiktok_ads_diagnosis_agent`, `tiktok_ads_creative_testing_agent`), which aren't API endpoints.
+- Env: `TIKTOK_DISABLE_CATALOG=1` skips the generated tools; `TIKTOK_TOOL_PREFIXES=smart_plus,gmv_max`
+  registers only matching groups (useful to keep the tool list small for Claude).
+- Smart+ ad create/update/status calls are throttled to one per 5s per advertiser, per TikTok's limit.
+- HTTP methods are inferred from tool names (retried with the other method on a 405), so a few may need fixing.
+
+**Destructive (hand-written):** none. Status tools accept only ENABLE/DISABLE; DELETE is rejected.
 
 > `generate_quick_report` exists in the source but is **not registered**: it polls up to
 > 5 minutes and can exceed HTTP request timeouts. Enable it only if you accept
