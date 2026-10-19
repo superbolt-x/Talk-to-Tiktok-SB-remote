@@ -100,9 +100,12 @@ def annotation_for(name: str, method: str) -> ToolAnnotations:
 
 
 def _selected(name: str) -> bool:
-    """TIKTOK_TOOL_PREFIXES=smart_plus,gmv_max limits which generated tools register."""
+    """TIKTOK_TOOL_PREFIXES=smart_plus,gmv_max limits which generated tools register.
+
+    Each entry matches anywhere in the name, so gmv_max also catches campaign_gmv_max_*.
+    """
     prefixes = [p.strip() for p in os.environ.get("TIKTOK_TOOL_PREFIXES", "").split(",") if p.strip()]
-    return not prefixes or any(name.startswith(p) for p in prefixes)
+    return not prefixes or any(p in name for p in prefixes)
 
 
 async def _throttle(advertiser: str | None, name: str) -> None:
