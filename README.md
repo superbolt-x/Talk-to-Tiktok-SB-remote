@@ -64,7 +64,7 @@ by `api_catalog.py`. GETs are read-only; delete/unbind/cancel/disable tools are 
 - Not exposed: `bc_transfer` and `payment_portfolio_credit_line_update` (they move money), and TikTok's two
   agent tools (`tiktok_ads_diagnosis_agent`, `tiktok_ads_creative_testing_agent`), which aren't API endpoints.
 - Env: `TIKTOK_DISABLE_CATALOG=1` skips the generated tools; `TIKTOK_TOOL_PREFIXES=smart_plus,gmv_max`
-  registers only matching groups (useful to keep the tool list small for Claude).
+  registers only tools whose name contains an entry (useful to keep the tool list small for Claude).
 - Smart+ ad create/update/status calls are throttled to one per 5s per advertiser, per TikTok's limit.
 - HTTP methods are inferred from tool names (retried with the other method on a 405), so a few may need fixing.
 
