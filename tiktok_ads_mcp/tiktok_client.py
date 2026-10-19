@@ -179,6 +179,31 @@ class TikTokAdsClient:
             data["filtering"] = filtering
         return await self._make_request("POST", "report/task/create/", data=data)
 
+    async def get_integrated_report(
+        self,
+        report_type: str,
+        data_level: str,
+        dimensions: List[str],
+        metrics: List[str],
+        start_date: str,
+        end_date: str,
+        filtering: Optional[List[Dict[str, Any]]] = None,
+        page_size: int = 1000,
+    ) -> Dict[str, Any]:
+        """Synchronous report (report/integrated/get/) — no async allowlist needed."""
+        params: Dict[str, Any] = {
+            "report_type": report_type,
+            "data_level": data_level,
+            "dimensions": dimensions,
+            "metrics": metrics,
+            "start_date": start_date,
+            "end_date": end_date,
+            "page_size": page_size,
+        }
+        if filtering:
+            params["filtering"] = filtering
+        return await self._make_request("GET", "report/integrated/get/", params=params)
+
     async def get_report_task_status(self, task_id: str) -> Dict[str, Any]:
         return await self._make_request("GET", "report/task/check/", params={"task_id": task_id})
 

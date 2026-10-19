@@ -404,11 +404,12 @@ async def tiktok_ads_generate_report(
     metrics: list[str],
     start_date: str,
     end_date: str,
-    filtering: dict | None = None,
+    filtering: list[dict] | dict | None = None,
     advertiser_id: str | None = None,
 ) -> dict:
-    """Start an asynchronous custom performance report. Returns a task_id to poll
+    """Run a custom performance report. Normally async: returns a task_id to poll
     with tiktok_ads_get_report_status and fetch with tiktok_ads_download_report.
+    If async reports aren't enabled for the app, runs synchronously and returns rows inline.
 
     Args:
         report_type: BASIC, AUDIENCE, PLACEMENT, or DPA.
@@ -416,7 +417,8 @@ async def tiktok_ads_generate_report(
         metrics: e.g. impressions, clicks, spend, ctr, cpm, cpc, conversion.
         start_date: YYYY-MM-DD.
         end_date: YYYY-MM-DD.
-        filtering: Optional TikTok report filtering object.
+        filtering: Optional list of {field_name, filter_type, filter_value}, e.g.
+            [{"field_name": "campaign_ids", "filter_type": "IN", "filter_value": "[\\"123\\"]"}].
         advertiser_id: Advertiser ID (defaults to the selected/default account).
     """
     if not ACCESS_TOKEN:
@@ -695,8 +697,10 @@ async def tiktok_ads_estimate_audience_size(targeting: dict, advertiser_id: str 
     """Estimate audience size for a targeting spec (read-only; creates nothing).
 
     Args:
-        targeting: TikTok /ad/audience_size/estimate/ body fields (e.g. placements,
-            location_ids, age_groups, gender, interest_category_ids, objective_type).
+        targeting: TikTok /ad/audience_size/estimate/ body fields. Required: objective_type,
+            optimization_goal, promotion_type (e.g. WEBSITE_OR_DISPLAY). Also e.g. placements,
+            location_ids, age_groups, gender, interest_category_ids. (The field is
+            optimization_goal, not optimize_goal.)
         advertiser_id: Advertiser ID (defaults to the selected/default account).
     """
     return await _manage(advertiser_id, lambda m: m.estimate_audience_size(targeting))
