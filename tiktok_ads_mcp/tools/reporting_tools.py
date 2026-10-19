@@ -19,7 +19,7 @@ class ReportingTools:
         dimensions: List[str],
         metrics: List[str],
         date_range: Dict[str, str],
-        filtering: Optional[Dict[str, Any]] = None,
+        filtering: Optional[Any] = None,
     ) -> Dict[str, Any]:
         """Generate a custom performance report.
         
@@ -83,15 +83,43 @@ class ReportingTools:
                     "message": f"Invalid metrics: {', '.join(invalid_metrics)}"
                 }
             
+            # TikTok expects filtering as a list of {field_name, filter_type, filter_value}.
+            if isinstance(filtering, dict):
+                filtering = [filtering]
+
             # Create report task
-            result = await self.client.create_report_task(
-                report_type=report_type,
-                dimensions=dimensions,
-                metrics=metrics,
-                start_date=start_date,
-                end_date=end_date,
-                filtering=filtering,
-            )
+            try:
+                result = await self.client.create_report_task(
+                    report_type=report_type,
+                    dimensions=dimensions,
+                    metrics=metrics,
+                    start_date=start_date,
+                    end_date=end_date,
+                    filtering=filtering,
+                )
+            except Exception as e:
+                if "allowlist" not in str(e).lower():
+                    raise
+                # Async reports aren't enabled for this app — run synchronously instead.
+                level = (
+                    "AUCTION_AD" if "ad_id" in dimensions
+                    else "AUCTION_ADGROUP" if "adgroup_id" in dimensions
+                    else "AUCTION_CAMPAIGN"
+                )
+                sync = await self.client.get_integrated_report(
+                    report_type=report_type, data_level=level, dimensions=dimensions,
+                    metrics=metrics, start_date=start_date, end_date=end_date, filtering=filtering,
+                )
+                data = sync.get("data", {})
+                return {
+                    "success": True,
+                    "mode": "synchronous",
+                    "note": "Async reports are not enabled for this app; ran synchronously. Rows are inline — no task_id to poll.",
+                    "report_type": report_type,
+                    "date_range": f"{start_date} to {end_date}",
+                    "rows": data.get("list", []),
+                    "page_info": data.get("page_info"),
+                }
             
             task_data = result.get("data", {})
             task_id = task_data.get("task_id")
